@@ -1,0 +1,26 @@
+<html>
+<head>
+	<title>diminutive goblet: strategy layer</title>
+    <script type="text/javascript" src="http://code.createjs.com/easeljs-0.6.1.min.js"></script>
+	<script type="text/javascript" src="libraries/AlphaMaskFilter.js"></script>
+	<script type="text/javascript" src="geometry.js"></script>
+	<script type="text/javascript" src="diminutive.js" ></script>
+</head>
+<body onload="preload()" style="background-color: #666;">
+	<div style="clear: both; color: #FFF;">
+	<p><strong>Description:</strong> A diminutive magical goblet casts a protective shield from the central city, <span id="centralCityName">CityNameGoesHere</span>. Human and demon forces can only attack cities that are within the neutral zone between the <span style="color: yellow;">goblet shield</span> and the <span style="color: #F77">demonic influence barrier</span>. When either side captures a city, it gains influence within the neutral zone. The demonic influence is weaker for cities closer to the central city. The neutral zone barriers are set a fixed distance away from the closest captured city of the opposite side.<p>
+	<p>This is a fan pre-production prototype of something vaguely related to the game <a style="color: #0FF;" href="http://massivechalice.com">MASSIVE CHALICE</a>. I am not affiliated with MASSIVE CHALICE except as a backer.</p></div>
+	<canvas id="testCanvas" width="635" height="572" style="float: left;"></canvas>
+	<div style="float: left; margin-left: 1em;">
+		<h1 style="color: #FFF;"><span id="cityName">No city selected.</span> <span id="cityAffiliation"></span></h1>
+		<p style="color: #FFF;" id="cityDescription">Select a city by clicking one of the small circles in the map to the left.</p>
+		<button id="demonToggleButton" style="display: none;" onClick="selectedCity.toggleDemonic()">Toggle Affiliation</button>
+	</div>
+	<div style="clear: left;">
+		<span style="color: #FFF;">Debug tools: </span>
+		<button onClick="dbgToggleAll(true)">All Demonic</button>
+		<button onClick="dbgToggleAll(false)">All Human</button>
+		<button onClick="dbgToggleRandom()">Random Toggle</button>
+	</div>
+</body>
+</html>
