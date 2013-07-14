@@ -1,20 +1,22 @@
-var stage;
-var radialMask;
-var mapFront;
-var mapBack;
+// diminutive.js - Matt Gingerich, 2013 - A fan pre-production prototype of the MASSIVE CHALICE concept by Double Fine Productions.
+
+var stage;			// main drawing area
 var width;
 var height;
+var radialMask;		// shape object for creating radial blur between human/demon lands
+var mapFront;		// top layer of the map (human territory)
+var mapBack;		// bottom layer of the map (demon territory)
 var innerBorder;
 var outerBorder;
-var cities = [];
+var cities = [];	// list of all city objects
 var roadLayer;
-var interactionLayer;
-var balance = 0.5;
+var interactionLayer;	// layer for showing highlights around cities and other interface elements
+var balance = 0.5;		// controls the midpoint of the gradient between human/demon territory
 var selectedCity = null;
-var borders = [0,0];
+var borders = [0,0];	// radii of the borders of the neutral zone
 
-var preloaded = 0;
-var imageList = ["kingdom_layer2.png", "demon_layer2.png"];
+var preloaded = 0;		// counts number of images successfully loaded
+var imageList = ["kingdom_layer2.png", "demon_layer2.png"];	// images to preload before init
 
 // randomly orders the array "a" with a Fisher-Yates shuffle
 function shuffle(a){
@@ -26,6 +28,7 @@ function shuffle(a){
 	}
 }
 
+// select selectionSize indices randomly from setSize indices
 function randomSelection(setSize, selectionSize){
 	a = [];
 	for (var i=0; i<setSize; i++) a.push(i);
@@ -33,24 +36,27 @@ function randomSelection(setSize, selectionSize){
 	return a.slice(0,selectionSize);
 }
 
+// The city object construct takes a city's x and y coordinates.
+// The city object contains its own shape/hitArea objects for drawing
+// and sets event handlers for clicks.
 function city(x, y){
 	this.x = x;
 	this.y = y;
-	this.roads = []
-	this.cityRadius = 7;
+	this.roads = []			// Array of neighbouring cities
+	this.cityRadius = 7;	// Radius of the city graphic
 	this.strokeColour = this.strokeColourKingdom = "rgb(80,80,0)";
-	this.fillColour = this.fillColourKingdom = "rgb(230,230,210)";
+	this.fillColour = this.fillColourKingdom = "rgb(230,230,210)";	// City colour when not possessed
 	this.strokeColourDemon = "rgb(240,0,0)";
-	this.fillColourDemon = "rgb(20,0,0)";
-	this.isDemonic = false;
+	this.fillColourDemon = "rgb(20,0,0)";		// City colour when possessed by demons
+	this.isDemonic = false;						// True when city is possessed
 	this.shape = new createjs.Shape();
 	this.hitArea = new createjs.Shape();
 	this.shape.hitArea = this.hitArea;
-	this.name = '';
-	this.makeName();
-	this.distanceFromHub = 0;
-	this.influence = 0;
-	(function(target){
+	this.name = '';								// City name (auto-generated)
+	this.makeName();							// Sets city name
+	this.distanceFromHub = 0;					// City distance from map center
+	this.influence = 0;							// Amount of opposition influence experienced by city
+	(function(target){		// Event handlers
 		target.shape.onClick = function(evt){target.handleMouse(true, false)}
 	})(this);
 	(function(target){
@@ -59,9 +65,10 @@ function city(x, y){
 	(function(target){
 		target.shape.onMouseOut = function(evt){target.handleMouse(false, false)}
 	})(this);
-	stage.addChild(this.shape);
+	stage.addChild(this.shape);	// Adds city to drawing context
 }
 
+// Writes information about city to side panel
 city.prototype.displayInfo = function(){
 	document.getElementById('cityName').innerHTML = this.name;
 	document.getElementById('cityAffiliation').innerHTML = this.isDemonic?"(Demonic)":"(Human)";
@@ -76,6 +83,7 @@ city.prototype.displayInfo = function(){
 	}
 }
 
+// Selects cities on click and shows mouseouver/mouseout highlights
 city.prototype.handleMouse = function(isClick, isMouseOver){
 	if (isClick) {
 		selectedCity = this;
@@ -99,6 +107,7 @@ city.prototype.handleMouse = function(isClick, isMouseOver){
 	stage.update();
 }
 
+// Switches allegiance of city and updates neutral zone barriers
 city.prototype.toggleDemonic = function(){
 	this.isDemonic = !this.isDemonic;
 	if (this.isDemonic){
@@ -113,6 +122,7 @@ city.prototype.toggleDemonic = function(){
 	stage.update();
 }
 
+// Connects a city to another and draws road on map
 city.prototype.buildRoad = function(neighbour){
 	if (this.roads.indexOf(neighbour) < 0){
 		this.roads.push(neighbour);
@@ -126,6 +136,7 @@ city.prototype.buildRoad = function(neighbour){
 	}
 }
 
+// Draws a city and sets its hit area for user interaction
 city.prototype.drawCity = function(){
 	this.shape.graphics.clear().setStrokeStyle(2)
 		.beginStroke(this.strokeColour)
@@ -141,10 +152,12 @@ city.prototype.drawCity = function(){
 	this.shape.hitArea = this.hitArea;
 }
 
+// Calculates distance to another city (along direct line)
 city.prototype.distance = function(cityB){
 	return dist([this.x, this.y], [cityB.x, cityB.y]);
 }
 
+// Randomly generates a city name by mixing and matching a bunch of pieces
 city.prototype.makeName = function(){
 	var cityPrefixes = ['New ', 'San ', 'Fort ', 'Fort Mac', 'Los ']
 	var cityPartA = ['On', 'Ana', 'Blen', 'Bern', 'Swiss', 'Cupo', 'Super', 'Mega', 'Ultra', 'Du', 'Sal', 'Cali',
@@ -152,8 +165,8 @@ city.prototype.makeName = function(){
 	var cityPartB = ['helm', 'heim', 'topia', 'ville', 'tario', 'tula', 'burg', 'tino', 'barn', 'place',
 						'troit', 'fornia', 'don', 'berta', 'wa', 'tonio', 'lumbia', 'nin'];
 	var unique = false;
-	while (!unique){
-		var name = ''
+	while (!unique){	// Disallows multiple identical names for the same map
+		var name = ''	// Keeps trying until a unique name is found (don't create a bazillion cities or this will loop forever)
 		if (Math.random()>0.7){
 			name += cityPrefixes[Math.floor(Math.random()*cityPrefixes.length)]
 		}
@@ -170,6 +183,7 @@ city.prototype.makeName = function(){
 	this.name = name;
 }
 
+// Calculates the force exerted by the opposition's magical field on this city
 city.prototype.calculateInfluence = function(){
 	if (this.distanceFromHub == 0){
 		return 0.5+0.5*(this.cityRadius/borders[1]-balance);
@@ -180,6 +194,7 @@ city.prototype.calculateInfluence = function(){
 	return this.influence;
 }
 
+// Preload images
 function preload() {
 	for (var i = 0; i < imageList.length; i++) {
 		var loadingImage = new Image();
@@ -188,6 +203,20 @@ function preload() {
 	}
 }
 
+// Count completed loads
+function incrementLoadCounter() {
+	preloaded++;
+	if (preloaded >= imageList.length) {
+		init(); // Run init when everything is done loading
+	}
+}
+
+// Does intialization stuff <-- getting lazy at commenting
+// It's pretty self-explanatory though, right?
+//
+// This might be a good time to mention that comments about the lack of clarity of this
+// code (or anything else about it) are welcome on the MASSIVE CHALICE forum:
+// http://www.doublefine.com/forums/viewthread/9905/
 function init(){
 	stage = new createjs.Stage("testCanvas");
 	stage.enableMouseOver();
@@ -212,18 +241,15 @@ function init(){
 	updateBarriers();
 }
 
-function incrementLoadCounter() {
-	preloaded++;
-	if (preloaded >= imageList.length) {
-		init();
-	}
-}
-
+// Creates numCities city objects arranged in a ring on the map.
 function constructCityRing(ringRadius, numCities){
 	var ring = [];
 	var twoPI = 2*Math.PI;
-	var thetaOffset = Math.random()*twoPI;
+	var thetaOffset = Math.random()*twoPI;	// Each ring is randomly rotated
 	var thetaStep = twoPI/numCities;
+	// Some of the cities on the ring are bumped inwards by a fixed amount. This allows the neutral zone barrier to
+	// divide cities along each ring. I refer to this inward bump as both a "radius offset step" and "stagger" in the
+	// comments below.
 	var radiusOffsetStep = 25;
 	var staggerCounter = 0;
 	for (var i=0; i<numCities;i++){
@@ -237,13 +263,17 @@ function constructCityRing(ringRadius, numCities){
 		}
 		var theta = (thetaOffset + thetaStep*i)%twoPI;
 		var radius = ringRadius-stagger*radiusOffsetStep;
-		var newCity = new city(Math.cos(theta)*radius+width/2, Math.sin(theta)*radius+height/2);
-		newCity.distanceFromHub = radius;
+		var newCity = new city(Math.cos(theta)*radius+width/2, Math.sin(theta)*radius+height/2); // MATH
+		newCity.distanceFromHub = radius;					// ^-- Converts polar coordinates to cartesian
 		ring.push(newCity);
 	}
 	return ring;
 }
 
+// Connects city roads. The resulting graph is guaranteed to be connected (there is
+// a path connecting any pair of vertices), it's generally the case that edges won't
+// cross (although that's not guaranteed and can be broken if the input rings are
+// irregular), and edges are selected to be short to yield sensible road networks.
 function buildRingConnectionRoads(innerRing, outerRing){
 	// Build roads outwards from inner ring to nearest cities
 	for (var i=0; i<innerRing.length; i++){
@@ -263,10 +293,10 @@ function buildRingConnectionRoads(innerRing, outerRing){
 	for (var i=0; i<outerRing.length; i++){
 		var shortestDistance = Infinity;
 		var closestCity = null;
-		for (var j=0; j<innerRing.length; j++){
-			var x = outerRing[i].distance(innerRing[j]);
-			if (x < shortestDistance){
-				shortestDistance = x;
+		for (var j=0; j<innerRing.length; j++){		// I iterate through things a lot
+			var x = outerRing[i].distance(innerRing[j]);	// this could probably be optimized
+			if (x < shortestDistance){						// but it doesn't need to be
+				shortestDistance = x;						// and so it won't be
 				closestCity = innerRing[j];
 			}
 		}
@@ -274,15 +304,17 @@ function buildRingConnectionRoads(innerRing, outerRing){
 	}
 }
 
+// Places all cities on the map
 function createCities(){
 	cities[0] = new city(width/2,height/2); // first city is in the center (holding the diminutive goblet)
 	cities[0].cityRadius = 20;				// center city is bigger than all the others
-	cities[0].fillColour = cities[0].fillColourKingdom = "rgb(240,240,120)";
-	document.getElementById('centralCityName').innerHTML = cities[0].name;
+	cities[0].fillColour = cities[0].fillColourKingdom = "rgb(240,240,120)";	// it's also yellow, because why not
+	document.getElementById('centralCityName').innerHTML = cities[0].name;		// this bit adds the generated name into my intro paragraph
 	var citiesPerRing = [1, 5, 7, 10, 15];
-	var edgeOffset = 5;
+	var numberOfInitialDemonTowns = 12;
+	var edgeOffset = 5;		// gives a tiny (diminutive, even) border at the edge of the canvas so cities don't go all the way to the edge
 	var numRings = citiesPerRing.length;
-	var ringStep = (Math.min(width, height)/2-edgeOffset)/(numRings-1);
+	var ringStep = (Math.min(width, height)/2-edgeOffset)/(numRings-1);	// gap between rings (not considering stagger)
 	var rings = [[cities[0]]];
 	for (var i=1; i<numRings; i++){
 		rings[i] = constructCityRing(ringStep*i, citiesPerRing[i]);
@@ -293,7 +325,8 @@ function createCities(){
 		cities = cities.concat(rings[i]);
 	}
 	
-	var initialDemons = randomSelection(citiesPerRing[numRings-1], 12);
+	// Randomly set some towns to be demonic in the outer ring
+	var initialDemons = randomSelection(citiesPerRing[numRings-1], numberOfInitialDemonTowns);
 	for (var i=0; i<initialDemons.length; i++){
 		rings[rings.length-1][initialDemons[i]].toggleDemonic();
 	}
@@ -304,6 +337,7 @@ function createCities(){
 	stage.update();
 }
 
+// Draws circular neutral zone borders and updates the gradient transition between human/demon land
 function drawBarriers(r1,r2,balance) {			
 	radialMask.graphics.beginRadialGradientFill(["#000", "rgba(0,0,0,0.5)", "transparent"], [0,balance,1], width/2, height/2, r1, width/2, height/2, r2);
 	radialMask.graphics.drawRect(0,0,width,height);
@@ -324,6 +358,7 @@ function drawBarriers(r1,r2,balance) {
 	stage.update();
 }
 
+// Calculates and redraws borders of neutral zone (called when cities change allegiance)
 function updateBarriers(){
 	var longestNonDemonicDistance = 0;
 	var shortestDemonicDistance = dist([0,0], [width/2,height/2]);
@@ -370,18 +405,21 @@ function updateBarriers(){
 		selectedCity.displayInfo();
 }
 
+// TESTING/DEBUGGING FUNCTIONS
+// Turns all cities demonic (if demon=true) or human (if demon=false)
 function dbgToggleAll(demon){
-for (var i=0; i<cities.length; i++){
-	if (cities[i].isDemonic!=demon)
-		cities[i].toggleDemonic()
-}
-updateBarriers();
+	for (var i=0; i<cities.length; i++){
+		if (cities[i].isDemonic!=demon)
+			cities[i].toggleDemonic()
+	}
+	updateBarriers();
 }
 
+// Randomly toggle the cities that are more than 150 pixels away from the goblet
 function dbgToggleRandom(){
-for (var i=0; i<cities.length; i++){
-	if (cities[i].distanceFromHub>150 && Math.random()>0.5)
-		cities[i].toggleDemonic()
-}
-updateBarriers();
+	for (var i=0; i<cities.length; i++){
+		if (cities[i].distanceFromHub>150 && Math.random()>0.5)
+			cities[i].toggleDemonic()
+	}
+	updateBarriers();
 }
